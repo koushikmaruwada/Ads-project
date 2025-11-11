@@ -1,5 +1,4 @@
-flask
-flask-cors
-vaderSentiment
-transformers
-torch
+Flask==3.0.3
+Flask-Cors==4.0.0
+vaderSentiment==3.3.2
+requests==2.31.0
