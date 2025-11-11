@@ -293,6 +293,21 @@
     if(!a||!b){ showError('Please paste both articles.'); return; }
     const model=document.getElementById('modelSelect').value||'zero_shot';
     await callAnalyze(a,b,model);
+    const API = 'https://vibrationless-unsturdily-audrie.ngrok-free.dev';
+
+fetch(`${API}/analyze`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    article1: document.getElementById('articleA').value,
+    article2: document.getElementById('articleB').value,
+    model: 'rule'    // or "zero_shot" / "vader"
+  })
+})
+.then(r => r.json())
+.then(data => console.log('analysis', data))
+.catch(err => console.error(err));
+
   });
 })();
 </script>
