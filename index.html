@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Compare Bias — Clean UI</title>
+
+<style>
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    background: #f5f7fb;
+    color: #222;
+  }
+
+  header {
+    background: #004080;
+    color: #fff;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  main {
+    max-width: 1100px;
+    margin: 1.5rem auto;
+    padding: 1rem;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 0.6rem;
+    margin-top: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    resize: vertical;
+  }
+
+  button {
+    background: #004080;
+    color: #fff;
+    border: none;
+    padding: 0.65rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+
+  .col {
+    flex: 1 1 48%;
+    min-width: 260px;
+  }
+
+  .panel {
+    background: #f8fafc;
+    padding: 0.9rem;
+    border-radius: 8px;
+    border: 1px solid #eef2f7;
+  }
+
+  h2 {
+    margin: 0 0 0.6rem 0;
+    color: #00305a;
+  }
+
+  .meta {
+    font-family: monospace;
+    background: #fff;
+    padding: 0.6rem;
+    border-radius: 6px;
+    border: 1px solid #eee;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-left: 0.4rem;
+  }
+
+  .badge.green {
+    background: #e6ffed;
+    color: #008000;
+  }
+
+  .badge.red {
+    background: #ffe6e6;
+    color: #d00000;
+  }
+
+  .biased-word {
+    display: inline-block;
+    background: #fff3f2;
+    border: 1px solid #ffd0cc;
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    margin: 0.15rem;
+  }
+
+  .article-text {
+    background: #fff;
+    padding: 0.6rem;
+    border-radius: 6px;
+    border: 1px solid #eee;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .highlight {
+    background: #fff3b0;
+    border-radius: 3px;
+    padding: 0 2px;
+    font-weight: 600;
+  }
+
+  .examples { margin-top: 0.5rem; font-size: 0.95rem; color: #222; }
+  .error { background: #fff0f0; border-left: 4px solid #ff4d4d; padding: 0.6rem; margin-top: 0.6rem; border-radius: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Compare Bias — Clean UI</h1>
+</header>
+
+<main>
+  <label><strong>Article A (Newspaper 1)</strong></label>
+  <textarea id="articleA" placeholder="Paste article A here..."></textarea>
+
+  <label style="margin-top:0.75rem;display:block;"><strong>Article B (Newspaper 2)</strong></label>
+  <textarea id="articleB" placeholder="Paste article B here..."></textarea>
+
+  <div style="margin-top:0.8rem; display:flex; gap:0.6rem; align-items:center">
+    <button id="compareBtn">Compare Articles</button>
+    <select id="modelSelect" style="padding:0.5rem;border-radius:6px;border:1px solid #ccc">
+      <option value="zero_shot" selected>Zero-Shot (Transformer)</option>
+      <option value="vader">VADER (Sentiment)</option>
+    </select>
+  </div>
+
+  <section id="results" style="margin-top:1rem; display:none;">
+    <div class="row">
+      <div class="col panel">
+        <h2>Bias Analysis</h2>
+
+        <div style="display:flex;gap:0.7rem;flex-wrap:wrap">
+          <div style="flex:1 1 48%;">
+            <strong>Article A <span id="badgeA" class="badge"></span></strong>
+            <div id="articleAMeta" class="meta">--</div>
+            <div id="biasedA"></div>
+            <div id="examplesA" class="examples"></div>
+            <h4 style="margin-top:0.6rem;margin-bottom:0.25rem">Article A (highlighted)</h4>
+            <div id="articleAText" class="article-text"></div>
+          </div>
+
+          <div style="flex:1 1 48%;">
+            <strong>Article B <span id="badgeB" class="badge"></span></strong>
+            <div id="articleBMeta" class="meta">--</div>
+            <div id="biasedB"></div>
+            <div id="examplesB" class="examples"></div>
+            <h4 style="margin-top:0.6rem;margin-bottom:0.25rem">Article B (highlighted)</h4>
+            <div id="articleBText" class="article-text"></div>
+          </div>
+        </div>
+
+        <div id="finalVerdict" style="margin-top:0.75rem;font-weight:700;"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="errorBox"></div>
+</main>
+
+<script>
+(function(){
+  const results = document.getElementById('results');
+  const metaA = document.getElementById('articleAMeta');
+  const metaB = document.getElementById('articleBMeta');
+  const verdictEl = document.getElementById('finalVerdict');
+  const badgeA = document.getElementById('badgeA');
+  const badgeB = document.getElementById('badgeB');
+  const biasedAdiv = document.getElementById('biasedA');
+  const biasedBdiv = document.getElementById('biasedB');
+  const examplesA = document.getElementById('examplesA');
+  const examplesB = document.getElementById('examplesB');
+  const articleAText = document.getElementById('articleAText');
+  const articleBText = document.getElementById('articleBText');
+  const errorBox = document.getElementById('errorBox');
+
+  function showError(msg){ errorBox.innerHTML = '<div class="error">'+msg+'</div>'; results.style.display='none'; }
+  function clearError(){ errorBox.innerHTML=''; }
+
+  function setBadge(el,label){
+    el.textContent = label==='biased' ? 'Biased' : 'Not Biased';
+    el.className = 'badge ' + (label==='biased' ? 'red' : 'green');
+  }
+
+  function renderBiasMeta(a,b,verdict){
+    metaA.textContent = JSON.stringify(a,null,2);
+    metaB.textContent = JSON.stringify(b,null,2);
+    setBadge(badgeA, verdict.article1_label);
+    setBadge(badgeB, verdict.article2_label);
+    let t='Both articles appear equally biased.';
+    if(verdict.which_more_biased==='article1') t='Article A appears more biased.';
+    if(verdict.which_more_biased==='article2') t='Article B appears more biased.';
+    verdictEl.textContent = t + ` (A: ${verdict.article1_label}, B: ${verdict.article2_label})`;
+  }
+
+  function renderBiasedWords(container, examplesContainer, biasedObj){
+    container.innerHTML = '';
+    examplesContainer.innerHTML = '';
+    const keys = Object.keys(biasedObj || {});
+    if(keys.length === 0){
+      container.innerHTML = '<div style="color:#666">No biased words detected.</div>';
+      return;
+    }
+    keys.sort((a,b)=> biasedObj[b].count - biasedObj[a].count);
+    keys.forEach(w=>{
+      const e = biasedObj[w];
+      const el = document.createElement('span');
+      el.className = 'biased-word';
+      el.textContent = `${w} (${e.count})`;
+      container.appendChild(el);
+    });
+
+    // show examples (first 3 words/phrases)
+    const exampleHtml = keys.slice(0,4).map(w=>{
+      const ex = biasedObj[w];
+      return `<div style="margin-top:0.35rem"><strong>${w}</strong> — ${ex.examples.slice(0,2).map(s=>`<div style="margin-top:0.15rem">"${s}"</div>`).join('')}</div>`;
+    }).join('');
+    examplesContainer.innerHTML = exampleHtml || '';
+  }
+
+  function escapeHtml(unsafe) {
+    return (unsafe || '').replace(/[&<"'>]/g, function(m){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]);
+    });
+  }
+
+  function highlightText(text, biasedObj){
+    if(!biasedObj || Object.keys(biasedObj).length === 0) return escapeHtml(text);
+    const words = Object.keys(biasedObj).sort((a,b)=> b.length - a.length).map(s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+    const re = new RegExp('\\b(' + words.join('|') + ')\\b','ig');
+    return escapeHtml(text).replace(re, m=>`<span class="highlight">${m}</span>`);
+  }
+
+  async function callAnalyze(a,b,model='zero_shot'){
+    clearError();
+    results.style.display='none';
+    try{
+      const resp = await fetch('http://127.0.0.1:5000/analyze', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ article1:a, article2:b, model })
+      });
+      if(!resp.ok){ showError('Server error: '+resp.status); return; }
+      const data = await resp.json();
+
+      const ra = data.final?.article1 || data.rule_based?.article1 || {};
+      const rb = data.final?.article2 || data.rule_based?.article2 || {};
+      renderBiasMeta(ra, rb, data.verdict || {article1_label:'unknown',article2_label:'unknown',which_more_biased:'equal'});
+
+      const bA=(data.biased_words && data.biased_words.article1)||{};
+      const bB=(data.biased_words && data.biased_words.article2)||{};
+      renderBiasedWords(biasedAdiv, examplesA, bA);
+      renderBiasedWords(biasedBdiv, examplesB, bB);
+
+      articleAText.innerHTML = highlightText(a, bA);
+      articleBText.innerHTML = highlightText(b, bB);
+
+      results.style.display='block';
+    } catch(e){ showError('Network error: '+e.message); }
+  }
+
+  document.getElementById('compareBtn').addEventListener('click', async()=>{
+    clearError();
+    const a=document.getElementById('articleA').value.trim();
+    const b=document.getElementById('articleB').value.trim();
+    if(!a||!b){ showError('Please paste both articles.'); return; }
+    const model=document.getElementById('modelSelect').value||'zero_shot';
+    await callAnalyze(a,b,model);
+  });
+})();
+</script>
+</body>
+</html>
